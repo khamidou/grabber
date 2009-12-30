@@ -3,26 +3,47 @@
 import sys
 import fcntl
 import signal
+import glob
+import re
 from os import popen
 
-# Try to acquire the file lock :
+
+lockfile = "/tmp/grabber" + os.getpid()
 
 def bail_out(msg):
 	print msg
         sys.exit(-1)
 
-lockfile = "/tmp/grabber" + os.getpid()
+def close_file():
+    fd.close()
+    os.unlink(lockfile)
+
+
+fl = glob.glob("/tmp/grabber*") 
+if  fl != []:
+    # Grabber is already running - it is has been invoked a second time it's because 
+    # the user want to leave automated typing mode.
+    
+    pid = int(re.sub("\D", "", fl[0])) # Get the pid of the original process.
+    os.kill(pid, os.SIGUSR1)
+    sys.exit(0)
+
+# Try to acquire the file lock :
 
 try:
     fd = open(lockfile, "wt")
 except IOError:
-    bail_out("Unable to open /tmp/grabber - exiting")
+    bail_out("Unable to open " + lockfile + " - exiting")
 
-try:
-    fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-except IOError:
-    # Grabber is already running - it is has been invoked a second time it's because 
-    # the user want to leave automated grab mode.
+# Create signal handler : 
+def handler():
+    xte_pipe.close()
+    menu_pipe.close()
+    close_file()
+
+# Set the signal handler and a 5-second alarm
+signal.signal(signal.SIGALRM, handler)
+
 
 try:
     xte_pipe = popen("xte", "w")
@@ -35,11 +56,5 @@ while True:
     for c in menu_pipe.read():
         xte_pipe.write("key " + c + "\n")
 
-# 
-# Unlock the file at the end
-try:
-    fcntl.lockf(fd, fcntl.LOCK_UN)
-except IOError:
-    bail_out("Unable to release lock on file")
 
 
