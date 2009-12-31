@@ -5,56 +5,26 @@ import fcntl
 import signal
 import glob
 import re
+import os
+import atexit
 from os import popen
 
-
-lockfile = "/tmp/grabber" + os.getpid()
 
 def bail_out(msg):
 	print msg
         sys.exit(-1)
-
-def close_file():
-    fd.close()
-    os.unlink(lockfile)
-
-
-fl = glob.glob("/tmp/grabber*") 
-if  fl != []:
-    # Grabber is already running - it is has been invoked a second time it's because 
-    # the user want to leave automated typing mode.
-    
-    pid = int(re.sub("\D", "", fl[0])) # Get the pid of the original process.
-    os.kill(pid, os.SIGUSR1)
-    sys.exit(0)
-
-# Try to acquire the file lock :
-
-try:
-    fd = open(lockfile, "wt")
-except IOError:
-    bail_out("Unable to open " + lockfile + " - exiting")
-
-# Create signal handler : 
-def handler():
-    xte_pipe.close()
-    menu_pipe.close()
-    close_file()
-
-# Set the signal handler and a 5-second alarm
-signal.signal(signal.SIGALRM, handler)
-
 
 try:
     xte_pipe = popen("xte", "w")
 except IOError:
     bail_out("Unable to open xte pipe")
 
-while True:
-    menu_pipe = popen("./grabber-menu", "r")
 
-    for c in menu_pipe.read():
-        xte_pipe.write("key " + c + "\n")
-
-
+try:
+	menu_pipe = popen("./grabber-menu", "r")
+except IOError:
+	bail_out("Unable to invoke grabber-menu")
+		
+for c in menu_pipe.read():
+	xte_pipe.write("key " + c + "\n")
 
